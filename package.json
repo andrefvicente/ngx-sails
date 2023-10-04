@@ -1,0 +1,60 @@
+{
+  "name": "@aloreljs/ngx-sails",
+  "version": "3.0.0",
+  "author": {
+    "name": "Arturas Molcanovas",
+    "url": "https://github.com/Alorel",
+    "email": "a.molcanovas@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alorel/ngx-sails.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Alorel/ngx-sails/issues"
+  },
+  "description": "Sails socket.io bindings for Angular",
+  "keywords": [
+    "angular",
+    "ngx",
+    "sails",
+    "socket",
+    "socket.io",
+    "binding",
+    "bindings"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@types/socket.io-client": "^1.4.36",
+    "tslib": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@angular/common": "^16.2.7",
+    "@angular/core": "^16.2.7",
+    "rxjs": "^7.8.0",
+    "socket.io-client": "2.5.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "module": "fesm2015/aloreljs-ngx-sails.mjs",
+  "es2020": "fesm2020/aloreljs-ngx-sails.mjs",
+  "esm2020": "esm2020/aloreljs-ngx-sails.mjs",
+  "fesm2020": "fesm2020/aloreljs-ngx-sails.mjs",
+  "fesm2015": "fesm2015/aloreljs-ngx-sails.mjs",
+  "typings": "index.d.ts",
+  "exports": {
+    "./package.json": {
+      "default": "./package.json"
+    },
+    ".": {
+      "types": "./index.d.ts",
+      "esm2020": "./esm2020/aloreljs-ngx-sails.mjs",
+      "es2020": "./fesm2020/aloreljs-ngx-sails.mjs",
+      "es2015": "./fesm2015/aloreljs-ngx-sails.mjs",
+      "node": "./fesm2015/aloreljs-ngx-sails.mjs",
+      "default": "./fesm2020/aloreljs-ngx-sails.mjs"
+    }
+  },
+  "sideEffects": false
+}
