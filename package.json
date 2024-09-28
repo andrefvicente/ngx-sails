@@ -29,9 +29,9 @@
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@angular/common": "^17.0.8",
-    "@angular/core": "^17.0.8",
-    "rxjs": "^7.8.0",
+    "@angular/common": "^18.2.6",
+    "@angular/core": "^18.2.6",
+    "rxjs": "^7.8.1",
     "socket.io-client": "2.5.0"
   },
   "publishConfig": {
