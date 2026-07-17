@@ -1,3 +1,9 @@
+## 4.0.1
+
+* Restore Sails virtual requests over the socket (get/post/put/patch/delete) — no HTTP fetch / CORS
+* Keep socket.io-client v4 connect helper
+* Force Angular CD after socket responses (PendingTasks + MarkForCheck + ApplicationRef.tick on macrotask)
+
 # @aloreljs/ngx-sails (fork)
 
 ## 4.0.0

@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/andrefvicente/ngx-sails/issues"
   },
-  "description": "Sails socket.io bindings for Angular (fork: HTTP CRUD + socket.io-client v4 realtime)",
+  "description": "Sails socket.io bindings for Angular (fork: socket CRUD + socket.io-client v4 + Angular CD)",
   "keywords": [
     "angular",
     "ngx",

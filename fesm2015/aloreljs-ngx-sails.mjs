@@ -137,16 +137,14 @@ class SailsClient {
         return this._sendRequest(url, "put" /* RequestMethod.PUT */, body, opts);
     }
     _sendRequest(url, method, data, options = {}) {
-        const request = clean({
+        // Sails virtual requests over the socket (no CORS / no HTTP fetch).
+        return wrapForAngularCd(sendRequest(clean({
             data: clean(data),
             headers: clean({ ...this._defaultHeaders, ...options.headers }),
             method,
             params: clean(options.params || options.search || {}),
             url
-        });
-        // HTTP via Zone-patched fetch so Angular change detection runs after responses.
-        // Socket.io callbacks often complete already inside NgZone and leave templates stale.
-        return wrapForAngularCd(sendHttpRequest(request, this._uri, this._errorsSbj), this._zone, this._pendingTasks, this._scheduler, this._appRef);
+        }), this.io, this._errorsSbj), this._zone, this._pendingTasks, this._scheduler, this._appRef);
     }
 }
 SailsClient.ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "15.1.2", ngImport: i0, type: SailsClient, deps: [{ token: i0.Injector }, { token: IO_INSTANCE, optional: true }, { token: NGX_SAILS_CONFIG, optional: true }], target: i0.ɵɵFactoryTarget.Injectable });
@@ -167,7 +165,11 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "15.1.2", ngImpor
                 }] }]; } });
 
 
-/** Deliver async Observable notifications inside Angular's CD cycle. */
+/**
+ * Deliver socket.io Observable notifications inside Angular's CD cycle.
+ * Socket callbacks often run already inside NgZone so run() is a no-op and
+ * CD can flush before state updates — force a macrotask refresh.
+ */
 function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options = {}) {
     const trackPending = options.trackPending !== false;
     return new Observable(subscriber => {
@@ -179,6 +181,34 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             catch (_a) { }
         }
         let settled = false;
+        const scheduleRefresh = () => {
+            setTimeout(() => {
+                try {
+                    if (scheduler) {
+                        scheduler.notify(11 /* PendingTaskRemoved */);
+                        scheduler.notify(4 /* MarkForCheck */);
+                    }
+                }
+                catch (_b) { }
+                try {
+                    if (appRef && !appRef.destroyed) {
+                        zone.run(() => {
+                            try {
+                                for (const ref of appRef.components) {
+                                    try {
+                                        ref.changeDetectorRef?.markForCheck?.();
+                                    }
+                                    catch (_c) { }
+                                }
+                                appRef.tick();
+                            }
+                            catch (_d) { }
+                        });
+                    }
+                }
+                catch (_e) { }
+            }, 0);
+        };
         const settle = () => {
             if (settled) {
                 return;
@@ -187,14 +217,8 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             try {
                 done();
             }
-            catch (_b) { }
-            try {
-                if (scheduler) {
-                    scheduler.notify(11 /* PendingTaskRemoved */);
-                    scheduler.notify(4 /* MarkForCheck */);
-                }
-            }
-            catch (_c) { }
+            catch (_f) { }
+            scheduleRefresh();
         };
         const deliver = (fn) => {
             if (NgZone.isInAngularZone()) {
@@ -205,7 +229,13 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             }
         };
         const subscription = source.subscribe({
-            next: (value) => deliver(() => subscriber.next(value)),
+            next: (value) => {
+                deliver(() => subscriber.next(value));
+                // Long-lived on() streams never complete — refresh after each event.
+                if (!trackPending) {
+                    scheduleRefresh();
+                }
+            },
             error: (err) => {
                 deliver(() => subscriber.error(err));
                 settle();
@@ -222,88 +252,34 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
     });
 }
 
-function sendHttpRequest(request, baseUri, errors$) {
+function sendRequest(request, io, errors$) {
+    const { method } = request;
     request.headers = lowerCaseHeaders(request.headers);
     return new Observable(subscriber => {
-        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const method = String(request.method || 'get').toUpperCase();
-        let url;
-        try {
-            url = new URL(request.url, baseUri || (typeof location !== 'undefined' ? location.origin : 'http://localhost'));
-        }
-        catch (_a) {
-            url = new URL(request.url, typeof location !== 'undefined' ? location.origin : 'http://localhost');
-        }
-        const params = request.params || {};
-        for (const [key, value] of Object.entries(params)) {
-            if (value !== undefined && value !== null) {
-                url.searchParams.set(key, String(value));
-            }
-        }
-        const headers = { ...(request.headers || {}) };
-        // Browsers forbid setting Host; preserve tenant slug for backends that read x-host.
-        if (headers['host'] && !headers['x-host']) {
-            headers['x-host'] = headers['host'];
-        }
-        delete headers['host'];
-        const init = {
-            method,
-            headers,
-            credentials: 'include',
-        };
-        if (controller) {
-            init.signal = controller.signal;
-        }
-        if (method !== 'GET' && method !== 'HEAD' && request.data !== undefined) {
-            if (!headers['content-type']) {
-                headers['content-type'] = 'application/json';
-            }
-            init.body = typeof request.data === 'string' ? request.data : JSON.stringify(request.data);
-        }
-        fetch(url.toString(), init).then(async (res) => {
-            const text = await res.text();
-            let body = null;
-            if (text) {
-                try {
-                    body = JSON.parse(text);
+        let unsubscribed = false;
+        io.emit(method, request, (rawResponse) => {
+            if (!unsubscribed) {
+                if (rawResponse.statusCode >= 400) {
+                    const error = new SailsError(rawResponse, request);
+                    errors$.next(error);
+                    subscriber.error(error);
                 }
-                catch (_b) {
-                    body = text;
+                else {
+                    try {
+                        subscriber.next(new SailsResponse(rawResponse, request));
+                        subscriber.complete();
+                    }
+                    catch (e) {
+                        subscriber.error(e);
+                    }
                 }
             }
-            const headerMap = {};
-            res.headers.forEach((value, key) => {
-                headerMap[key] = value;
-            });
-            const rawResponse = {
-                statusCode: res.status,
-                body,
-                headers: headerMap,
-            };
-            if (rawResponse.statusCode >= 400) {
-                const error = new SailsError(rawResponse, request);
-                errors$.next(error);
-                subscriber.error(error);
-            }
-            else {
-                subscriber.next(new SailsResponse(rawResponse, request));
-                subscriber.complete();
-            }
-        }).catch((err) => {
-            if (err?.name === 'AbortError') {
-                return;
-            }
-            subscriber.error(err);
         });
         return () => {
-            try {
-                controller?.abort();
-            }
-            catch (_c) { }
+            unsubscribed = true;
         };
     });
 }
-
 function lowerCaseHeaders(headers) {
     if (headers) {
         let lowercased;
