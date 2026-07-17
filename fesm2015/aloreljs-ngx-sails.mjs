@@ -68,11 +68,16 @@ class SailsClient {
         // Resolve Angular CD deps from Injector (keeps ɵfac signature stable)
         this._zone = inj.get(NgZone);
         this._appRef = inj.get(ApplicationRef);
-        this._pendingTasks = inj.get(PendingTasks);
+        try {
+            this._pendingTasks = inj.get(PendingTasks);
+        }
+        catch (_a) {
+            this._pendingTasks = null;
+        }
         try {
             this._scheduler = inj.get(i0.ɵChangeDetectionScheduler);
         }
-        catch (_a) {
+        catch (_b) {
             this._scheduler = null;
         }
     }
@@ -111,7 +116,7 @@ class SailsClient {
             return () => {
                 this.io.off(event, next);
             };
-        }), this._zone, this._pendingTasks, this._scheduler, this._appRef);
+        }), this._zone, this._pendingTasks, this._scheduler, this._appRef, { trackPending: false });
     }
     options(url, opts) {
         return this._sendRequest(url, "options" /* RequestMethod.OPTIONS */, undefined, opts);
@@ -154,10 +159,18 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "15.1.2", ngImpor
                     }] }];
     } });
 
+
 /** Deliver socket.io Observable notifications inside Angular's CD cycle. */
-function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef) {
+function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options = {}) {
+    const trackPending = options.trackPending !== false;
     return new Observable(subscriber => {
-        const done = pendingTasks.add();
+        let done = () => { };
+        if (trackPending && pendingTasks) {
+            try {
+                done = pendingTasks.add();
+            }
+            catch (_a) { }
+        }
         let settled = false;
         const settle = () => {
             if (settled) {
@@ -167,20 +180,31 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef) {
             try {
                 done();
             }
-            catch (_a) { }
-            try {
-                if (scheduler) {
-                    scheduler.notify(4 /* MarkForCheck */);
-                    scheduler.notify(11 /* PendingTaskRemoved */);
-                }
-            }
             catch (_b) { }
             try {
-                if (appRef && !appRef.destroyed) {
-                    zone.run(() => appRef.tick());
+                if (scheduler) {
+                    scheduler.notify(11 /* PendingTaskRemoved */);
+                    scheduler.notify(4 /* MarkForCheck */);
                 }
             }
             catch (_c) { }
+            // Never tick synchronously: socket callbacks often resume inside an
+            // in-flight CD cycle (NavigationEnd, etc.) and recursive tick() breaks the UI.
+            if (appRef && !appRef.destroyed) {
+                queueMicrotask(() => {
+                    try {
+                        if (!appRef.destroyed) {
+                            zone.run(() => {
+                                try {
+                                    appRef.tick();
+                                }
+                                catch (_d) { }
+                            });
+                        }
+                    }
+                    catch (_e) { }
+                });
+            }
         };
         const deliver = (fn) => {
             if (NgZone.isInAngularZone()) {

@@ -1,5 +1,11 @@
 # @aloreljs/ngx-sails (fork)
 
+## 3.1.1
+
+- Avoid synchronous `ApplicationRef.tick()` (prevents recursive CD that can blank UI / hide POS sidenav).
+- Do not register `PendingTasks` for long-lived `on()` event streams.
+- Resolve `PendingTasks` optionally so construction never throws.
+
 ## 3.1.0
 
 - Deliver `SailsClient` Observable notifications inside Angular's change-detection cycle
