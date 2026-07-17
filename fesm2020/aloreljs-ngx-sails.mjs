@@ -71,7 +71,6 @@ class SailsClient {
             headers: this._defaultHeaders,
             options: this._cfg,
         });
-        // Resolve Angular CD deps from Injector (keeps ɵfac signature stable)
         this._zone = inj.get(NgZone);
         this._appRef = inj.get(ApplicationRef);
         try {
@@ -90,11 +89,9 @@ class SailsClient {
     delete(url, opts) {
         return this._sendRequest(url, "delete" /* RequestMethod.DELETE */, undefined, opts);
     }
-    /** Emit an event */
     emit(event, ...args) {
         this.io.emit(event, ...args);
     }
-    /** Emit an event and wait for a response. */
     emitAndWait(event, ...args) {
         return wrapForAngularCd(new Observable(subscriber => {
             this.io.emit(event, ...args, (response) => {
@@ -109,7 +106,6 @@ class SailsClient {
     head(url, opts) {
         return this._sendRequest(url, "head" /* RequestMethod.HEAD */, undefined, opts);
     }
-    /** @inheritDoc */
     ngOnDestroy() {
         this._errorsSbj.complete();
     }
@@ -137,7 +133,6 @@ class SailsClient {
         return this._sendRequest(url, "put" /* RequestMethod.PUT */, body, opts);
     }
     _sendRequest(url, method, data, options = {}) {
-        // Sails virtual requests over the socket (no CORS / no HTTP fetch).
         return wrapForAngularCd(sendRequest(clean({
             data: clean(data),
             headers: clean({ ...this._defaultHeaders, ...options.headers }),
@@ -164,11 +159,10 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "15.1.2", ngImpor
                     args: [NGX_SAILS_CONFIG]
                 }] }]; } });
 
-
 /**
- * Deliver socket.io Observable notifications inside Angular's CD cycle.
- * Socket callbacks often run already inside NgZone so run() is a no-op and
- * CD can flush before state updates — force a macrotask refresh.
+ * Socket.io callbacks often already run inside NgZone, so Angular CD can flush
+ * before component state updates. Defer emissions to a macrotask and force
+ * detectChanges after each delivery (required on Angular 22).
  */
 function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options = {}) {
     const trackPending = options.trackPending !== false;
@@ -181,34 +175,37 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             catch (_a) { }
         }
         let settled = false;
-        const scheduleRefresh = () => {
+        const forceDetect = () => {
+            try {
+                if (scheduler) {
+                    scheduler.notify(11 /* PendingTaskRemoved */);
+                    scheduler.notify(4 /* MarkForCheck */);
+                }
+            }
+            catch (_b) { }
+            try {
+                if (appRef && !appRef.destroyed) {
+                    for (const ref of appRef.components) {
+                        try {
+                            ref.changeDetectorRef?.detectChanges?.();
+                        }
+                        catch (_c) { }
+                    }
+                }
+            }
+            catch (_d) { }
+        };
+        const deliver = (fn) => {
+            // Always leave the current turn — zone.run alone is a no-op when already in-zone.
             setTimeout(() => {
-                try {
-                    if (scheduler) {
-                        scheduler.notify(11 /* PendingTaskRemoved */);
-                        scheduler.notify(4 /* MarkForCheck */);
+                zone.run(() => {
+                    try {
+                        fn();
                     }
-                }
-                catch (_b) { }
-                try {
-                    if (appRef && !appRef.destroyed) {
-                        zone.run(() => {
-                            try {
-                                // Angular 22: appRef.tick()/markForCheck often skip views that
-                                // were mutated from socket callbacks already inside NgZone.
-                                // detectChanges() on roots matches ng.applyChanges() and refreshes UI.
-                                for (const ref of appRef.components) {
-                                    try {
-                                        ref.changeDetectorRef?.detectChanges?.();
-                                    }
-                                    catch (_c) { }
-                                }
-                            }
-                            catch (_d) { }
-                        });
+                    finally {
+                        forceDetect();
                     }
-                }
-                catch (_e) { }
+                });
             }, 0);
         };
         const settle = () => {
@@ -219,32 +216,23 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             try {
                 done();
             }
-            catch (_f) { }
-            scheduleRefresh();
-        };
-        const deliver = (fn) => {
-            if (NgZone.isInAngularZone()) {
-                fn();
-            }
-            else {
-                zone.run(fn);
-            }
+            catch (_e) { }
         };
         const subscription = source.subscribe({
             next: (value) => {
                 deliver(() => subscriber.next(value));
-                // Long-lived on() streams never complete — refresh after each event.
-                if (!trackPending) {
-                    scheduleRefresh();
-                }
             },
             error: (err) => {
-                deliver(() => subscriber.error(err));
-                settle();
+                deliver(() => {
+                    subscriber.error(err);
+                    settle();
+                });
             },
             complete: () => {
-                deliver(() => subscriber.complete());
-                settle();
+                deliver(() => {
+                    subscriber.complete();
+                    settle();
+                });
             },
         });
         return () => {
@@ -309,9 +297,4 @@ function clean(obj) {
     return obj;
 }
 
-/**
- * Generated bundle index. Do not edit.
- */
-
 export { IO_INSTANCE, NGX_SAILS_CONFIG, Response, SailsClient, SailsError, SailsResponse };
-//# sourceMappingURL=aloreljs-ngx-sails.mjs.map

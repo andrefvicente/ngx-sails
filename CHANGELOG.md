@@ -1,3 +1,7 @@
+## 4.0.3
+
+* Defer socket emissions to a macrotask + force root detectChanges (Angular 22 CD)
+
 ## 4.0.2
 
 * Force UI refresh with root `detectChanges()` after socket responses (Angular 22; `tick`/`markForCheck` insufficient)
