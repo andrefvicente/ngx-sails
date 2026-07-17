@@ -1,5 +1,5 @@
 import * as i0 from '@angular/core';
-import { InjectionToken, Injectable, Optional, Inject } from '@angular/core';
+import { InjectionToken, Injectable, Optional, Inject, NgZone, ApplicationRef, PendingTasks } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
 import * as _io from 'socket.io-client';
 
@@ -65,6 +65,16 @@ class SailsClient {
             headers: this._defaultHeaders,
             options: this._cfg,
         });
+        // Resolve Angular CD deps from Injector (keeps ɵfac signature stable)
+        this._zone = inj.get(NgZone);
+        this._appRef = inj.get(ApplicationRef);
+        this._pendingTasks = inj.get(PendingTasks);
+        try {
+            this._scheduler = inj.get(i0.ɵChangeDetectionScheduler);
+        }
+        catch (_a) {
+            this._scheduler = null;
+        }
     }
     delete(url, opts) {
         return this._sendRequest(url, "delete" /* RequestMethod.DELETE */, undefined, opts);
@@ -75,12 +85,12 @@ class SailsClient {
     }
     /** Emit an event and wait for a response. */
     emitAndWait(event, ...args) {
-        return new Observable(subscriber => {
+        return wrapForAngularCd(new Observable(subscriber => {
             this.io.emit(event, ...args, (response) => {
                 subscriber.next(response);
                 subscriber.complete();
             });
-        });
+        }), this._zone, this._pendingTasks, this._scheduler, this._appRef);
     }
     get(url, opts) {
         return this._sendRequest(url, "get" /* RequestMethod.GET */, undefined, opts);
@@ -93,15 +103,15 @@ class SailsClient {
         this._errorsSbj.complete();
     }
     on(event) {
-        return new Observable(subscriber => {
-            function next(msg) {
+        return wrapForAngularCd(new Observable(subscriber => {
+            const next = (msg) => {
                 subscriber.next(msg);
-            }
+            };
             this.io.on(event, next);
             return () => {
                 this.io.off(event, next);
             };
-        });
+        }), this._zone, this._pendingTasks, this._scheduler, this._appRef);
     }
     options(url, opts) {
         return this._sendRequest(url, "options" /* RequestMethod.OPTIONS */, undefined, opts);
@@ -116,13 +126,13 @@ class SailsClient {
         return this._sendRequest(url, "put" /* RequestMethod.PUT */, body, opts);
     }
     _sendRequest(url, method, data, options = {}) {
-        return sendRequest(clean({
+        return wrapForAngularCd(sendRequest(clean({
             data: clean(data),
             headers: clean(Object.assign(Object.assign({}, this._defaultHeaders), options.headers)),
             method,
             params: clean(options.params || options.search || {}),
             url
-        }), this.io, this._errorsSbj);
+        }), this.io, this._errorsSbj), this._zone, this._pendingTasks, this._scheduler, this._appRef);
     }
 }
 SailsClient.ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "15.1.2", ngImport: i0, type: SailsClient, deps: [{ token: i0.Injector }, { token: IO_INSTANCE, optional: true }, { token: NGX_SAILS_CONFIG, optional: true }], target: i0.ɵɵFactoryTarget.Injectable });
@@ -143,6 +153,61 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "15.1.2", ngImpor
                         args: [NGX_SAILS_CONFIG]
                     }] }];
     } });
+
+/** Deliver socket.io Observable notifications inside Angular's CD cycle. */
+function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef) {
+    return new Observable(subscriber => {
+        const done = pendingTasks.add();
+        let settled = false;
+        const settle = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            try {
+                done();
+            }
+            catch (_a) { }
+            try {
+                if (scheduler) {
+                    scheduler.notify(4 /* MarkForCheck */);
+                    scheduler.notify(11 /* PendingTaskRemoved */);
+                }
+            }
+            catch (_b) { }
+            try {
+                if (appRef && !appRef.destroyed) {
+                    zone.run(() => appRef.tick());
+                }
+            }
+            catch (_c) { }
+        };
+        const deliver = (fn) => {
+            if (NgZone.isInAngularZone()) {
+                fn();
+            }
+            else {
+                zone.run(fn);
+            }
+        };
+        const subscription = source.subscribe({
+            next: (value) => deliver(() => subscriber.next(value)),
+            error: (err) => {
+                deliver(() => subscriber.error(err));
+                settle();
+            },
+            complete: () => {
+                deliver(() => subscriber.complete());
+                settle();
+            },
+        });
+        return () => {
+            subscription.unsubscribe();
+            settle();
+        };
+    });
+}
+
 function sendRequest(request, io, errors$) {
     const { method } = request;
     request.headers = lowerCaseHeaders(request.headers);

@@ -1,6 +1,6 @@
 {
   "name": "@aloreljs/ngx-sails",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "author": {
     "name": "Arturas Molcanovas",
     "url": "https://github.com/Alorel",
@@ -8,12 +8,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Alorel/ngx-sails.git"
+    "url": "git+https://github.com/andrefvicente/ngx-sails.git"
   },
   "bugs": {
-    "url": "https://github.com/Alorel/ngx-sails/issues"
+    "url": "https://github.com/andrefvicente/ngx-sails/issues"
   },
-  "description": "Sails socket.io bindings for Angular",
+  "description": "Sails socket.io bindings for Angular (fork: zone/CD-aware socket responses)",
   "keywords": [
     "angular",
     "ngx",
@@ -29,10 +29,10 @@
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@angular/common": "19.1.7",
-    "@angular/core": "19.1.7",
-    "rxjs": "^7.8.2",
-    "socket.io-client": "2.5.0"
+    "@angular/common": ">=15.0.0",
+    "@angular/core": ">=15.0.0",
+    "rxjs": "^7.0.0",
+    "socket.io-client": ">=2.0.0"
   },
   "publishConfig": {
     "access": "public"
