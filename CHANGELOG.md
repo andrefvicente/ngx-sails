@@ -1,3 +1,7 @@
+## 4.0.2
+
+* Force UI refresh with root `detectChanges()` after socket responses (Angular 22; `tick`/`markForCheck` insufficient)
+
 ## 4.0.1
 
 * Restore Sails virtual requests over the socket (get/post/put/patch/delete) — no HTTP fetch / CORS

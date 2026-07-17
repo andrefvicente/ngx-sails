@@ -194,13 +194,15 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
                     if (appRef && !appRef.destroyed) {
                         zone.run(() => {
                             try {
+                                // Angular 22: appRef.tick()/markForCheck often skip views that
+                                // were mutated from socket callbacks already inside NgZone.
+                                // detectChanges() on roots matches ng.applyChanges() and refreshes UI.
                                 for (const ref of appRef.components) {
                                     try {
-                                        ref.changeDetectorRef?.markForCheck?.();
+                                        ref.changeDetectorRef?.detectChanges?.();
                                     }
                                     catch (_c) { }
                                 }
-                                appRef.tick();
                             }
                             catch (_d) { }
                         });
