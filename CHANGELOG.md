@@ -1,5 +1,10 @@
 # @aloreljs/ngx-sails (fork)
 
+## 3.2.0
+
+- Route SailsClient get/post/put/patch/delete over HTTP fetch so Angular zone CD updates templates.
+- Keep socket.io for on()/emit() realtime events.
+
 ## 3.1.2
 
 - Force change detection via `setTimeout` macrotask after socket responses.
