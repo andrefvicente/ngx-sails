@@ -1,5 +1,12 @@
 # @aloreljs/ngx-sails (fork)
 
+## 3.1.2
+
+- Force change detection via `setTimeout` macrotask after socket responses.
+- Fixes stale loading spinners when socket.io callbacks already run inside NgZone
+  (Zone-patched WebSocket) and microtask `ApplicationRef.tick()` is skipped.
+- Refresh UI after each `on()` event (streams that never complete).
+
 ## 3.1.1
 
 - Avoid synchronous `ApplicationRef.tick()` (prevents recursive CD that can blank UI / hide POS sidenav).

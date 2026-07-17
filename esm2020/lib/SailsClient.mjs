@@ -139,6 +139,33 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             catch (_a) { }
         }
         let settled = false;
+        const scheduleRefresh = () => {
+            // Socket.io callbacks are often already inside the Angular zone
+            // (Zone-patched WebSocket). NgZone.run is then a no-op, and a
+            // queueMicrotask tick can be skipped after CD already flushed for
+            // that turn — leaving templates stale until user interaction.
+            // A macrotask forces a fresh change-detection pass.
+            setTimeout(() => {
+                try {
+                    if (scheduler) {
+                        scheduler.notify(11 /* PendingTaskRemoved */);
+                        scheduler.notify(4 /* MarkForCheck */);
+                    }
+                }
+                catch (_b) { }
+                try {
+                    if (appRef && !appRef.destroyed) {
+                        zone.run(() => {
+                            try {
+                                appRef.tick();
+                            }
+                            catch (_c) { }
+                        });
+                    }
+                }
+                catch (_d) { }
+            }, 0);
+        };
         const settle = () => {
             if (settled) {
                 return;
@@ -147,31 +174,8 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             try {
                 done();
             }
-            catch (_b) { }
-            try {
-                if (scheduler) {
-                    scheduler.notify(11 /* PendingTaskRemoved */);
-                    scheduler.notify(4 /* MarkForCheck */);
-                }
-            }
-            catch (_c) { }
-            // Never tick synchronously: socket callbacks often resume inside an
-            // in-flight CD cycle (NavigationEnd, etc.) and recursive tick() breaks the UI.
-            if (appRef && !appRef.destroyed) {
-                queueMicrotask(() => {
-                    try {
-                        if (!appRef.destroyed) {
-                            zone.run(() => {
-                                try {
-                                    appRef.tick();
-                                }
-                                catch (_d) { }
-                            });
-                        }
-                    }
-                    catch (_e) { }
-                });
-            }
+            catch (_e) { }
+            scheduleRefresh();
         };
         const deliver = (fn) => {
             if (NgZone.isInAngularZone()) {
@@ -182,7 +186,13 @@ function wrapForAngularCd(source, zone, pendingTasks, scheduler, appRef, options
             }
         };
         const subscription = source.subscribe({
-            next: (value) => deliver(() => subscriber.next(value)),
+            next: (value) => {
+                deliver(() => subscriber.next(value));
+                // Long-lived on() streams never complete — refresh after each event.
+                if (!trackPending) {
+                    scheduleRefresh();
+                }
+            },
             error: (err) => {
                 deliver(() => subscriber.error(err));
                 settle();
