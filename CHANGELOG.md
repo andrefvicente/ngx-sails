@@ -1,5 +1,12 @@
 # @aloreljs/ngx-sails (fork)
 
+## 4.0.0
+
+- Require `socket.io-client` >= 4 (Engine.IO v4).
+- Resolve `io()` correctly for socket.io-client v4 ESM/CJS shapes.
+- Keep HTTP fetch for get/post/put/patch/delete; socket for on()/emit() realtime.
+- Drop `@types/socket.io-client` (types ship with v4).
+
 ## 3.2.0
 
 - Route SailsClient get/post/put/patch/delete over HTTP fetch so Angular zone CD updates templates.

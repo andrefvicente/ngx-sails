@@ -1,5 +1,6 @@
 import { Injector, OnDestroy } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { Socket } from 'socket.io-client';
 import { SailsError } from './classes/SailsError';
 import type { ISailsRequestOpts } from './interfaces/ISailsRequestOpts';
 import type { ISailsResponse } from './interfaces/ISailsResponse';
@@ -8,7 +9,7 @@ import type { AnyObject } from './util/AnyObject';
 import * as i0 from "@angular/core";
 export declare class SailsClient implements OnDestroy {
     readonly configuration: Readonly<NgxSailsConfig>;
-    readonly io: SocketIOClient.Socket;
+    readonly io: Socket;
     readonly requestErrors: Observable<SailsError>;
     private readonly _cfg;
     private readonly _defaultHeaders;

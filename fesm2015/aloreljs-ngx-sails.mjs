@@ -1,7 +1,12 @@
 import * as i0 from '@angular/core';
 import { InjectionToken, Injectable, Optional, Inject, NgZone, ApplicationRef, PendingTasks } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
-import * as _io from 'socket.io-client';
+import * as socketIoClient from 'socket.io-client';
+
+function connectSocket(uri, opts) {
+    const connect = socketIoClient.io || socketIoClient.default || socketIoClient;
+    return connect(uri, opts);
+}
 
 /** Abstract response class */
 class Response {
@@ -58,7 +63,7 @@ class SailsClient {
             query
         };
         this._uri = cfg?.uri || (typeof location !== 'undefined' ? location.origin : '');
-        this.io = io || (_io.default || _io)(cfg?.uri, this._cfg);
+        this.io = io || connectSocket(cfg?.uri, this._cfg);
         this._defaultHeaders = cfg?.headers || {};
         this._errorsSbj = new Subject();
         this.requestErrors = this._errorsSbj.asObservable();

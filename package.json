@@ -1,6 +1,6 @@
 {
   "name": "@aloreljs/ngx-sails",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "author": {
     "name": "Arturas Molcanovas",
     "url": "https://github.com/Alorel",
@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/andrefvicente/ngx-sails/issues"
   },
-  "description": "Sails socket.io bindings for Angular (fork: zone/CD-aware socket responses)",
+  "description": "Sails socket.io bindings for Angular (fork: HTTP CRUD + socket.io-client v4 realtime)",
   "keywords": [
     "angular",
     "ngx",
@@ -25,14 +25,13 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@types/socket.io-client": "^1.4.36",
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
     "@angular/common": ">=15.0.0",
     "@angular/core": ">=15.0.0",
     "rxjs": "^7.0.0",
-    "socket.io-client": ">=2.0.0"
+    "socket.io-client": ">=4.0.0"
   },
   "publishConfig": {
     "access": "public"
